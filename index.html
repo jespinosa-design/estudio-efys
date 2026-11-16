@@ -542,6 +542,19 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
 .br-steps li .ta { margin-top: 8px; }
 .br-steps li::marker { font-weight: 800; color: var(--orange-text); }
 
+/* Zona para subir documentos de estudio */
+.drop { display: grid; grid-template-columns: auto minmax(0,1fr) auto; gap: 14px; align-items: center; padding: 16px; border: 1.5px dashed var(--border-strong); border-radius: 12px; background: var(--surface-2); transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.drop-ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--orange-soft); color: var(--orange-text); }
+.drop-ic svg { width: 20px; height: 20px; }
+.drop-tx { display: grid; gap: 2px; min-width: 0; }
+.drop-tx b { font-size: 13.5px; } .drop-tx span { font-size: 12.5px; color: var(--muted); overflow-wrap: anywhere; }
+.drop-st { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.drop-st:empty { display: none; }
+@media (max-width: 560px) { .drop { grid-template-columns: auto minmax(0,1fr); } .drop .btn-row { grid-column: 1 / -1; } }
+
+.page-head > .btn-row { display: flex; flex-shrink: 0; max-width: 100%; justify-content: flex-end; }
+
 </style>
 </head>
 <body>
@@ -1738,7 +1751,7 @@ function modalNewDeck() {
     <div id="nd-fields">${courseFields(o, 'nd')}</div>
     <div class="field"><label for="nd-topic">Tema de la clase</label><input class="inp" id="nd-topic" data-form="nd" data-k="topic" value="${esc(o.topic)}" placeholder="Ej.: Flexibilidad y métodos de estiramiento">
       <div class="btn-row" id="nd-topics">${(oa.topics || []).map(t => `<button class="chip" data-act="pick-topic" data-t="${esc(t)}">${esc(t)}</button>`).join('')}</div></div>
-    <div class="field"><label for="nd-content">Contenido</label><textarea class="ta" id="nd-content" data-form="nd" data-k="content" rows="7" placeholder="Pega aquí tus apuntes, la guía de la unidad, definiciones o una lista de ideas. El asistente los ordena en diapositivas.">${esc(o.content)}</textarea><span class="hint">Mientras más contenido propio entregues, más fiel a tu clase será el resultado.</span></div>
+    ${dropZone('deck', NEWDECK.docName, wordCount(NEWDECK.content))}<div class="field"><label for="nd-content">Contenido</label><textarea class="ta" id="nd-content" data-form="nd" data-k="content" rows="7" placeholder="Pega aquí tus apuntes, la guía de la unidad, definiciones o una lista de ideas. El asistente los ordena en diapositivas.">${esc(o.content)}</textarea><span class="hint">Mientras más contenido propio entregues, más fiel a tu clase será el resultado.</span></div>
     <div class="grid3">
       <div class="field"><label for="nd-n">Diapositivas: <span id="nd-nv">${o.n}</span></label><input type="range" id="nd-n" min="6" max="16" value="${o.n}" data-form="nd" data-k="n"></div>
       <div class="field"><label for="nd-dur">Duración de la clase</label><select class="sel" id="nd-dur" data-form="nd" data-k="duration">${[45, 90, 135].map(d => `<option value="${d}" ${+o.duration === d ? 'selected' : ''}>${d} minutos</option>`).join('')}</select></div>
@@ -1799,7 +1812,7 @@ Duración de la clase: ${o.duration} minutos
 
 Contenido entregado por el docente (es la fuente principal; respeta sus conceptos y datos; solo agrega conocimiento disciplinar básico y correcto si falta):
 """
-${(o.content || '(sin contenido: desarrolla el tema según el programa de estudio)').slice(0, 14000)}
+${(o.content || '(sin contenido: desarrolla el tema según el programa de estudio)').slice(0, 40000)}
 """
 
 Reglas:
@@ -2008,7 +2021,8 @@ function genConfig() {
   else cfg = `<div class="grid3">${n('indicadores', 'Indicadores', 20)}</div>`;
   return `<div class="card pane"><div><h2 class="h2">Generar el contenido</h2><p class="small">${S.aiOn ? 'Claude actúa como experto en evaluación: redacta los reactivos, la pauta y aplica la distribución 50% inicial · 30% intermedia · 20% avanzada.' : 'Se creará la estructura con espacios para completar.'}</p></div>
     ${cfg}
-    <div class="field"><label for="g-base">Contenido base (opcional)</label><textarea class="ta" id="g-base" rows="4" data-bind="inst:gen.base" data-nopreview placeholder="Pega la materia trabajada en clases, la guía o las presentaciones de la unidad.">${esc(i.gen.base)}</textarea></div>
+    ${dropZone('inst', i.gen.docName, wordCount(i.gen.base))}
+    <div class="field"><label for="g-base">Contenido base ${i.gen.docName ? '(texto extraído del documento; puedes editarlo)' : '(opcional)'}</label><textarea class="ta" id="g-base" rows="${i.gen.docName ? 8 : 4}" data-bind="inst:gen.base" data-nopreview placeholder="Sube un documento arriba o pega aquí la materia trabajada en clases.">${esc(i.gen.base)}</textarea><span class="hint">Los reactivos se elaboran solo con este contenido y el OA seleccionado.</span></div>
     <div id="gen-progress"></div>
     <div class="btn-row">${S.aiOn ? `<button class="btn primary" data-act="ai-gen">${icon('spark')}Generar con IA</button>` : ''}<button class="btn" data-act="local-gen">Crear estructura vacía</button><span class="small">Reemplaza el contenido actual.</span></div></div>`;
 }
@@ -2200,7 +2214,7 @@ Responde solo con JSON: {"objetivo": "...", "indicadores": ["...", "..."], "titu
 }
 function genPrompt(i) {
   const g = i.gen;
-  const base = g.base ? `\nContenido trabajado en clases (fuente principal):\n"""\n${g.base.slice(0, 12000)}\n"""\n` : '';
+  const base = g.base ? `\nContenido de estudio entregado por el docente${g.docName ? ` (documento: ${g.docName})` : ''}. Es la fuente principal: los reactivos deben poder responderse con este material y no deben incluir información ajena a él, salvo conocimiento disciplinar básico:\n"""\n${g.base.slice(0, 40000)}\n"""\n` : '';
   const head = `Actúa como experto(a) en evaluación educacional y profesor(a) de Educación Física y Salud en Chile. Elabora el contenido de un instrumento de evaluación.
 ${ctxText(i)}
 Objetivo de evaluación: ${i.evalObjective || '(derívalo del OA)'}
@@ -2320,6 +2334,83 @@ function localObjective(i) {
   i.indicators = practical ? [`Ejecutan las tareas motrices de ${t} respetando los criterios técnicos entregados.`, 'Demuestran compromiso y autocuidado durante la actividad física.'] : [`Identifican los conceptos principales de ${t}.`, `Explican la relación entre ${t} y la salud.`, `Aplican lo aprendido sobre ${t} a situaciones de su vida cotidiana.`];
   if (!i.subtitle) i.subtitle = topic;
 }
+
+
+/* ---------------- Documentos de estudio: extracción de texto ---------------- */
+const DOC_ACCEPT = '.docx,.pdf,.pptx,.txt,.md,.rtf';
+function dropZone(target, name, words) {
+  return `<div class="drop" data-drop="${target}">
+    <div class="drop-ic">${icon('doc')}</div>
+    <div class="drop-tx"><b>${name ? 'Documento cargado' : 'Sube tu documento de estudio'}</b><span>${name ? `${esc(name)} · ${words} palabras extraídas` : 'Arrástralo aquí o elígelo desde tu computador. Word (.docx), PDF, PowerPoint (.pptx) o texto (.txt).'}</span></div>
+    <div class="btn-row"><label class="btn sm ${name ? '' : 'primary'}">${icon('up')}${name ? 'Cambiar' : 'Elegir archivo'}<input type="file" accept="${DOC_ACCEPT}" class="sr" data-act-file="study-${target}"></label>${name ? `<button class="btn sm ghost danger" data-act="rm-study" data-t="${target}">Quitar</button>` : ''}</div>
+    <div class="drop-st" data-drop-st></div>
+  </div>`;
+}
+const xmlText = (xml, tag) => { const doc = new DOMParser().parseFromString(xml, 'application/xml'); return doc; };
+async function textFromDocx(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const f = zip.file('word/document.xml'); if (!f) throw new Error('docx');
+  const doc = new DOMParser().parseFromString(await f.async('string'), 'application/xml');
+  const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+  const out = [];
+  for (const p of doc.getElementsByTagNameNS(W, 'p')) {
+    let t = '';
+    for (const n of p.getElementsByTagNameNS(W, '*')) { if (n.localName === 't') t += n.textContent; else if (n.localName === 'tab') t += ' '; else if (n.localName === 'br') t += '\n'; }
+    const isList = p.getElementsByTagNameNS(W, 'numPr').length > 0;
+    if (t.trim()) out.push((isList ? '- ' : '') + t.trim());
+  }
+  return out.join('\n');
+}
+async function textFromPptx(buf) {
+  const zip = await JSZip.loadAsync(buf);
+  const names = Object.keys(zip.files).filter(n => /^ppt\/slides\/slide\d+\.xml$/.test(n)).sort((a, b) => +a.match(/\d+/)[0] - +b.match(/\d+/)[0]);
+  const A = 'http://schemas.openxmlformats.org/drawingml/2006/main';
+  const out = [];
+  for (const n of names) {
+    const doc = new DOMParser().parseFromString(await zip.file(n).async('string'), 'application/xml');
+    const paras = [...doc.getElementsByTagNameNS(A, 'p')].map(p => [...p.getElementsByTagNameNS(A, 't')].map(t => t.textContent).join('').trim()).filter(Boolean);
+    if (paras.length) out.push('## ' + paras[0] + (paras.length > 1 ? '\n' + paras.slice(1).map(t => '- ' + t).join('\n') : ''));
+  }
+  return out.join('\n');
+}
+let pdfLoading;
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  const add = src => new Promise((ok, ko) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = ko; document.head.appendChild(s); });
+  // El worker se carga en la página (sin Worker externo), compatible con el marco de claude.ai y con la versión web
+  return pdfLoading = pdfLoading || add('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js').then(() => add('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js')).then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; });
+}
+async function textFromPdf(buf) {
+  await loadPdfJs();
+  const pdf = await window.pdfjsLib.getDocument({ data: new Uint8Array(buf), isEvalSupported: false }).promise;
+  const out = [];
+  for (let k = 1; k <= Math.min(pdf.numPages, 80); k++) {
+    const page = await pdf.getPage(k);
+    const tc = await page.getTextContent();
+    let line = '', lastY = null;
+    const lines = [];
+    tc.items.forEach(it => { const y = it.transform ? Math.round(it.transform[5]) : lastY; if (lastY !== null && Math.abs(y - lastY) > 2) { if (line.trim()) lines.push(line.trim()); line = ''; } line += it.str + (it.hasEOL ? ' ' : ''); lastY = y; });
+    if (line.trim()) lines.push(line.trim());
+    out.push(lines.join('\n'));
+  }
+  return out.join('\n');
+}
+async function extractStudyText(file) {
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  if (file.size > 25 * 1024 * 1024) throw new Error('El archivo supera los 25 MB.');
+  if (ext === 'doc' || ext === 'ppt') throw new Error('Formato antiguo: ábrelo en Word o PowerPoint y guárdalo como .docx o .pptx.');
+  const buf = await file.arrayBuffer();
+  let t;
+  if (ext === 'docx') t = await textFromDocx(buf);
+  else if (ext === 'pptx') t = await textFromPptx(buf);
+  else if (ext === 'pdf') t = await textFromPdf(buf);
+  else if (['txt', 'md', 'rtf'].includes(ext)) t = new TextDecoder().decode(buf).replace(/\{\\[^{}]*\}|\\[a-z]+-?\d* ?/g, ext === 'rtf' ? '' : '$&');
+  else throw new Error('Formato no compatible. Usa Word (.docx), PDF, PowerPoint (.pptx) o texto (.txt).');
+  t = t.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  if (t.split(/\s+/).length < 20) throw new Error(ext === 'pdf' ? 'El PDF no tiene texto seleccionable (probablemente es escaneado). Usa la versión Word o un PDF con texto.' : 'El documento casi no tiene texto.');
+  return t.slice(0, 60000);
+}
+const wordCount = t => String(t || '').trim().split(/\s+/).filter(Boolean).length;
 
 /* ---------------- Vista: banco de OA ---------------- */
 function viewOA() {
@@ -2505,6 +2596,7 @@ const ACTIONS = {
   'add-item': () => { S.inst.checklist.items.push({ text: '' }); scheduleSave(S.inst); render(); },
   'rm-item': el => { S.inst.checklist.items.splice(+el.dataset.i, 1); scheduleSave(S.inst); render(); },
   'ai-review': () => runReviewAI(),
+  'rm-study': el => { if (el.dataset.t === 'inst') { S.inst.gen.base = ''; delete S.inst.gen.docName; scheduleSave(S.inst); render(); } else { NEWDECK.content = ''; delete NEWDECK.docName; refreshDeckDrop(); } },
   'export-all': () => { const data = { app: 'estudio-efys', version: 1, exportedAt: new Date().toISOString(), decks: S.decks, instruments: S.insts }; saveFile(`Respaldo_EstudioEFyS_${new Date().toISOString().slice(0, 10)}.json`, new Blob([JSON.stringify(data)], { type: 'application/json' })); },
   'share-file': el => { const o = el.dataset.k === 'deck' ? S.deck : S.inst; const data = { app: 'estudio-efys', version: 1, [o.kind === 'deck' ? 'decks' : 'instruments']: [o] }; saveFile(safeName(o.kind === 'deck' ? o.title : (o.subtitle || o.title)) + '.efys.json', new Blob([JSON.stringify(data)], { type: 'application/json' })); },
   'ai-tech': () => { const t = $('#ai-ins'); if (t) t.value = 'Eleva el vocabulario a un registro técnico-profesional de las ciencias de la actividad física y la salud (fisiología del ejercicio, biomecánica, teoría del entrenamiento), con definiciones rigurosas y comprensibles para enseñanza media.'; runSlideAI(); },
@@ -2557,6 +2649,7 @@ document.addEventListener('change', async ev => {
   if (a === 'inst-prog') { const i = S.inst; i.program = el.value; i.level = el.value; const o = levelById(i.level).oas.find(x => x.n === (oaById(i.oaId)?.n || 3)) || levelById(i.level).oas[0]; i.oaId = o.id; i.oa = { code: oaCode(o), text: o.text }; scheduleSave(i); render(); }
   if (a === 'x-key') S.xKey = el.checked;
   if (a === 'x-tab') S.xTab = el.checked;
+  if (el.dataset.actFile && el.dataset.actFile.startsWith('study-') && el.files && el.files[0]) { await loadStudy(el.dataset.actFile.slice(6), el.files[0], el.closest('[data-drop]')); el.value = ''; return; }
   if (el.dataset.actFile === 'import' && el.files && el.files[0]) {
     try {
       const data = JSON.parse(await el.files[0].text());
@@ -2587,6 +2680,25 @@ document.addEventListener('keydown', ev => {
 });
 document.addEventListener('fullscreenchange', () => { if (!document.fullscreenElement && $('#present')) fitScalers(); });
 window.addEventListener('resize', () => { fitScalers(); fitPaper(); });
+
+
+async function loadStudy(target, file, zone) {
+  const st = zone && zone.querySelector('[data-drop-st]');
+  if (st) st.innerHTML = `<span class="spinner"></span> Leyendo ${esc(file.name)}…`;
+  try {
+    const t = await extractStudyText(file);
+    if (target === 'inst') { S.inst.gen.base = t; S.inst.gen.docName = file.name; if (!S.inst.topic) S.inst.topic = file.name.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '); scheduleSave(S.inst); render(); }
+    else { NEWDECK.content = t; NEWDECK.docName = file.name; refreshDeckDrop(); }
+    toast(`Documento listo: ${wordCount(t)} palabras extraídas.`);
+  } catch (e) { if (st) st.innerHTML = `<span style="color:var(--bad)">${esc(e && e.message && !/^(docx)$/.test(e.message) ? e.message : 'No se pudo leer el archivo. Verifica que no esté dañado o protegido con contraseña.')}</span>`; }
+}
+function refreshDeckDrop() {
+  const z = document.querySelector('[data-drop="deck"]'); if (z) z.outerHTML = dropZone('deck', NEWDECK.docName, wordCount(NEWDECK.content));
+  const ta = $('#nd-content'); if (ta) ta.value = NEWDECK.content;
+}
+['dragover', 'dragenter'].forEach(t => document.addEventListener(t, ev => { const z = ev.target.closest && ev.target.closest('[data-drop]'); if (z) { ev.preventDefault(); z.classList.add('over'); } }));
+document.addEventListener('dragleave', ev => { const z = ev.target.closest && ev.target.closest('[data-drop]'); if (z && !z.contains(ev.relatedTarget)) z.classList.remove('over'); });
+document.addEventListener('drop', ev => { const z = ev.target.closest && ev.target.closest('[data-drop]'); if (!z) return; ev.preventDefault(); z.classList.remove('over'); const f = ev.dataTransfer && ev.dataTransfer.files && ev.dataTransfer.files[0]; if (f) loadStudy(z.dataset.drop, f, z); });
 
 /* ---------------- Arranque ---------------- */
 (function boot() {
